@@ -1,0 +1,137 @@
+name: Push-notis vid ny MP3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.mp3'
+
+jobs:
+  send-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hämta repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Hitta ny MP3 och slå upp imam från index.html
+        id: mp3
+        run: |
+          CHANGED=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD \
+            | grep '\.mp3$' | grep -v '\-isha\.mp3$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT; exit 0
+          fi
+          NIGHT=$(basename "$(echo "$CHANGED" | head -1)" .mp3)
+          IMAM=$(python3 - "$NIGHT" << 'PYEOF'
+          import re, sys
+          night = sys.argv[1]
+          html  = open('index.html', encoding='utf-8').read()
+          pattern = rf"imamLabel:'([^']+)'[^{{}}]*datum:'{re.escape(night)}'"
+          m = re.search(pattern, html)
+          if not m:
+              pattern2 = rf"datum:'{re.escape(night)}'[^{{}}]*imamLabel:'([^']+)'"
+              m = re.search(pattern2, html)
+          print(m.group(1) if m else "Imam")
+          PYEOF
+          )
+          echo "night=$NIGHT" >> $GITHUB_OUTPUT
+          echo "imam=$IMAM"   >> $GITHUB_OUTPUT
+          echo "skip=false"   >> $GITHUB_OUTPUT
+          echo "Ny MP3: $NIGHT → $IMAM"
+
+      - name: Hämta OAuth2-token
+        if: steps.mp3.outputs.skip != 'true'
+        id: token
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          pip install google-auth py-vapid pywebpush --quiet
+          TOKEN=$(python3 -c "
+          from google.oauth2 import service_account
+          import google.auth.transport.requests
+          creds = service_account.Credentials.from_service_account_file(
+              '/tmp/sa.json',
+              scopes=['https://www.googleapis.com/auth/datastore'])
+          creds.refresh(google.auth.transport.requests.Request())
+          print(creds.token)
+          ")
+          echo "access_token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Hämta subscriptions och skicka Web Push
+        if: steps.mp3.outputs.skip != 'true'
+        run: |
+          NIGHT="${{ steps.mp3.outputs.night }}"
+          IMAM="${{ steps.mp3.outputs.imam }}"
+          SITE_URL="https://sverigesimamer.github.io/imam-schema-1448"
+          DEEP_LINK="${SITE_URL}/#natt=${NIGHT}"
+          FS_TOKEN="${{ steps.token.outputs.access_token }}"
+          VAPID_PRIVATE="${{ secrets.VAPID_PRIVATE_KEY }}"
+
+          python3 << PYEOF
+          import json, urllib.request, urllib.error
+          from pywebpush import webpush, WebPushException
+
+          # ── Hämta subscriptions från Firestore ────────────────
+          fs_url = "https://firestore.googleapis.com/v1/projects/sverigesimamer/databases/(default)/documents/fcm-tokens"
+          req = urllib.request.Request(fs_url, headers={"Authorization": "Bearer ${FS_TOKEN}"})
+          with urllib.request.urlopen(req) as resp:
+              data = json.loads(resp.read())
+
+          documents = data.get("documents", [])
+          if not documents:
+              print("Inga prenumeranter — avbryter")
+              exit(0)
+
+          print(f"Skickar till {len(documents)} enhet(er)...")
+
+          stale = []
+          for doc in documents:
+              fields   = doc.get("fields", {})
+              endpoint = fields.get("endpoint", {}).get("stringValue", "")
+              p256dh   = fields.get("p256dh",   {}).get("stringValue", "")
+              auth     = fields.get("auth",      {}).get("stringValue", "")
+              sub_type = fields.get("type",      {}).get("stringValue", "webpush")
+
+              if not endpoint:
+                  continue
+
+              payload = json.dumps({
+                  "title": "🎙️ Nytt Tarawih-ljud!",
+                  "body":  "${IMAM}s recitation har laddats upp. Lyssna nu.",
+                  "icon":  "${SITE_URL}/favicon.ico",
+                  "url":   "${DEEP_LINK}",
+                  "tag":   "new-audio",
+              })
+
+              try:
+                  webpush(
+                      subscription_info={
+                          "endpoint": endpoint,
+                          "keys": {"p256dh": p256dh, "auth": auth}
+                      },
+                      data=payload,
+                      vapid_private_key="${VAPID_PRIVATE_KEY}",
+                      vapid_claims={"sub": "mailto:admin@sverigesimamer.se"}
+                  )
+                  print(f"  ✅ {endpoint[:40]}...")
+              except WebPushException as e:
+                  if e.response and e.response.status_code in (404, 410):
+                      stale.append(doc["name"])
+                      print(f"  ⚠️  Utgången subscription — raderas")
+                  else:
+                      print(f"  ❌ Fel: {e}")
+
+          # Rensa utgångna subscriptions
+          for doc_name in stale:
+              del_req = urllib.request.Request(
+                  f"https://firestore.googleapis.com/v1/{doc_name}",
+                  method="DELETE",
+                  headers={"Authorization": "Bearer ${FS_TOKEN}"}
+              )
+              with urllib.request.urlopen(del_req): pass
+
+          print(f"Klart. Skickade: {len(documents)-len(stale)}, Borttagna: {len(stale)}")
+          PYEOF
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
