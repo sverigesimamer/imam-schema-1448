@@ -118,6 +118,9 @@ jobs:
             exit 1
           fi
 
+          # Imam per natt sätts i adminläget och ligger i Firestore (tarawih/1448, publik läsning)
+          SCHEDULE_DOC=$(curl -fsS "https://firestore.googleapis.com/v1/projects/sverigesimamer/databases/(default)/documents/tarawih/1448" || echo '{}')
+
           while IFS= read -r FILE; do
             [ -z "$FILE" ] && continue
 
@@ -158,7 +161,12 @@ jobs:
               URL="https://sverigesimamer.github.io/imam-schema-1448/"
             else
               NATT=$(echo "$LINE" | grep -oP "day:\K\d+" || true)
-              IMAM=$(echo "$LINE" | grep -oP "imamLabel:'\K[^']+" || true)
+              IMAM_ID=$(echo "$SCHEDULE_DOC" | jq -r --arg n "$NATT" '.fields.assignments.mapValue.fields[$n].stringValue // empty')
+              IMAM=""
+              if [ -n "$IMAM_ID" ]; then
+                IMAM=$(echo "$SCHEDULE_DOC" | jq -r --arg id "$IMAM_ID" '.fields.imams.mapValue.fields[$id].mapValue.fields.name.stringValue // empty')
+              fi
+              echo "Natt $NATT → imam: ${IMAM:-(ej tilldelad)}"
 
               TITLE="🔊 Låt Qur'anen fylla ditt hjärta"
 
