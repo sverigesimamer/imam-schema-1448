@@ -3172,6 +3172,7 @@
       thDay:           'Dag',
       surahsDetail:    'Suror — tryck för detaljer',
       footerText:      'Tarawih Schema Ramadan 1448',
+      imamTba:         'Meddelas senare',
       notifTitle:      '🕌 Isha-bönen är inne',
       notifBody:       'Bönetiden har börjat — kl. ',
       notifGranted:    'Notis aktiv',
@@ -3273,6 +3274,7 @@
       thDay:           'اليوم',
       surahsDetail:    'السور — اضغط للتفاصيل',
       footerText:      'جدول التراويح رمضان 1448',
+      imamTba:         'سيُعلَن لاحقًا',
       notifTitle:      '🕌 حان وقت صلاة العشاء',
       notifBody:       'بدأت الصلاة — الساعة ',
       notifGranted:    'الإشعار نشط',
@@ -3374,6 +3376,7 @@
       thDay:           'Day',
       surahsDetail:    'Surahs — tap for details',
       footerText:      'Tarawih Schedule Ramadan 1448',
+      imamTba:         'To be announced',
       notifTitle:      '🕌 Isha prayer has begun',
       notifBody:       'Prayer time has started — ',
       notifGranted:    'Notification active',
@@ -3475,6 +3478,7 @@
       thDay:           'Gün',
       surahsDetail:    'Sureler — detaylar için dokun',
       footerText:      'Teravih Programı Ramazan 1448',
+      imamTba:         'Daha sonra duyurulacak',
       notifTitle:      '🕌 Yatsı namazı vakti girdi',
       notifBody:       'Namaz başladı — saat ',
       notifGranted:    'Bildirim aktif',
@@ -3576,6 +3580,7 @@
       thDay:           'Maalinta',
       surahsDetail:    'Surooyin — taabo faahfaahin',
       footerText:      'Jadwalka Taraawiix Ramadaan 1448',
+      imamTba:         'Hadhow ayaa la shaacin doonaa',
       notifTitle:      '🕌 Waqtiga Cishaada wuu yimid',
       notifBody:       'Salaadda waxay bilaabatay — ',
       notifGranted:    'Ogeysiiska waa firfircoon',
@@ -3649,37 +3654,44 @@
   }
 
   const SCHEDULE = window.SCHEDULE = [
-    {day:1,  sidor:'2–11',    imam:'tba', imamLabel:'Meddelas senare', datum:'2027-02-07', vecka:'Sunday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:1 – 2:74'},
-    {day:2,  sidor:'11–21',  imam:'tba',        imamLabel:'Meddelas senare',         datum:'2027-02-08', vecka:'Monday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:75 – 2:141'},
-    {day:3,  sidor:'22–31',  imam:'tba',        imamLabel:'Meddelas senare',               datum:'2027-02-09', vecka:'Tuesday',  surahs:'Al-Baqarah',                                                                                                        tooltip:'2:142 – 2:202'},
-    {day:4,  sidor:'32–41',  imam:'tba',       imamLabel:'Meddelas senare',        datum:'2027-02-10', vecka:'Wednesday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:203 – 2:265'},
-    {day:5,  sidor:'42–51',  imam:'tba',    imamLabel:'Meddelas senare',      datum:'2027-02-11', vecka:'Thursday',   surahs:'Al-Baqarah, Ali Imran',                                                                                             tooltip:'2:266 – 3:14'},
-    {day:6,  sidor:'51–62',  imam:'tba', imamLabel:'Meddelas senare', datum:'2027-02-12', vecka:'Friday',   surahs:'Ali Imran',                                                                                                         tooltip:'3:15 – 3:92'},
-    {day:7,  sidor:'62–72',  imam:'tba', imamLabel:'Meddelas senare', datum:'2027-02-13', vecka:'Saturday',   surahs:'Ali Imran',                                                                                                         tooltip:'3:93 – 3:170'},
-    {day:8,  sidor:'72–81',  imam:'tba',        imamLabel:'Meddelas senare',         datum:'2027-02-14', vecka:'Sunday',   surahs:'Ali Imran, An-Nisa',                                                                                                tooltip:'3:171 – 4:23'},
-    {day:9,  sidor:'82–92',  imam:'tba',     imamLabel:'Meddelas senare',        datum:'2027-02-15', vecka:'Monday',   surahs:'An-Nisa',                                                                                                           tooltip:'4:24 – 4:87'},
-    {day:10, sidor:'92–101', imam:'tba',      imamLabel:'Meddelas senare',        datum:'2027-02-16', vecka:'Tuesday',  surahs:'An-Nisa',                                                                                                           tooltip:'4:88 – 4:147'},
-    {day:11, sidor:'102–106',imam:'tba',    imamLabel:'Meddelas senare',      datum:'2027-02-17', vecka:'Wednesday',   surahs:'An-Nisa, Fatir',                                                                                                    tooltip:'4:148 – 35:30'},
-    {day:12, sidor:'438–449',imam:'tba',        imamLabel:'Meddelas senare',         datum:'2027-02-18', vecka:'Thursday',   surahs:'Fatir, Ya-Sin, As-Saffat',                                                                                          tooltip:'35:31 – 37:82'},
-    {day:13, sidor:'449–458',imam:'tba',  imamLabel:'Meddelas senare',    datum:'2027-02-19', vecka:'Friday',   surahs:'As-Saffat, Sad',                                                                                                    tooltip:'37:83 – 38:88'},
-    {day:14, sidor:'458–467',imam:'tba',        imamLabel:'Meddelas senare',         datum:'2027-02-20', vecka:'Saturday',   surahs:'Az-Zumar',                                                                                                          tooltip:'39:1 – 39:75'},
-    {day:15, sidor:'467–476',imam:'tba',        imamLabel:'Meddelas senare',               datum:'2027-02-21', vecka:'Sunday',   surahs:'Ghafir',                                                                                                            tooltip:'40:1 – 40:85'},
-    {day:16, sidor:'476–486',imam:'tba',    imamLabel:'Meddelas senare',      datum:'2027-02-22', vecka:'Monday',   surahs:'Fussilat, Ash-Shura',                                                                                               tooltip:'41:1 – 42:26'},
-    {day:17, sidor:'486–495',imam:'tba',        imamLabel:'Meddelas senare',         datum:'2027-02-23', vecka:'Tuesday',  surahs:'Ash-Shura, Az-Zukhruf',                                                                                             tooltip:'42:27 – 43:89'},
-    {day:18, sidor:'496–506',imam:'tba',     imamLabel:'Meddelas senare',            datum:'2027-02-24', vecka:'Wednesday',   surahs:'Ad-Dukhan, Al-Jathiyah, Al-Ahqaf',                                                                                  tooltip:'44:1 – 46:35'},
-    {day:19, sidor:'507–515',imam:'tba',     imamLabel:'Meddelas senare',            datum:'2027-02-25', vecka:'Thursday',   surahs:'Muhammad, Al-Fath',                                                                                                 tooltip:'47:1 – 48:29'},
-    {day:20, sidor:'515–523',imam:'tba',        imamLabel:'Meddelas senare',         datum:'2027-02-26', vecka:'Friday',   surahs:'Al-Hujurat, Qaf, Adh-Dhariyat',                                                                                     tooltip:'49:1 – 51:60', moonText:H_SEEK_ODD},
-    {day:21, sidor:'523–531',imam:'tba',        imamLabel:'Meddelas senare',               datum:'2027-02-27', vecka:'Saturday',   surahs:'At-Tur, An-Najm, Al-Qamar',                                                                                         tooltip:'52:1 – 54:55', moonText:H_SEEK_ODD},
-    {day:22, sidor:'531–539',imam:'tba',    imamLabel:'Meddelas senare',      datum:'2027-02-28', vecka:'Sunday',   surahs:'Ar-Rahman, Al-Waqiah, Al-Hadid',                                                                                    tooltip:'55:1 – 57:15', moonText:H_STAND_UP},
-    {day:23, sidor:'539–548',imam:'tba', imamLabel:'Meddelas senare', datum:'2027-03-01', vecka:'Monday',   surahs:'Al-Hadid, Al-Mujadilah, Al-Hashr',                                                                                  tooltip:'57:16 – 59:24', moonText:H_SEEK_ODD},
-    {day:24, sidor:'549–557',imam:'tba',       imamLabel:'Meddelas senare',        datum:'2027-03-02', vecka:'Tuesday',  surahs:'Al-Mumtahanah, As-Saf, Al-Jumuah, Al-Munafiqun, At-Taghabun',                                                       tooltip:'60:1 – 64:18', moonText:H_STAND_UP},
-    {day:25, sidor:'558–566',imam:'tba',       imamLabel:'Meddelas senare',              datum:'2027-03-03', vecka:'Wednesday',   surahs:'At-Talaq, At-Tahrim, Al-Mulk, Al-Qalam',                                                                            tooltip:'65:1 – 68:52', moonText:H_SEEK_NIGHT},
-    {day:26, sidor:'566–574',imam:'tba', imamLabel:'Meddelas senare', datum:'2027-03-04', vecka:'Thursday',   surahs:'Al-Haqqah, Al-Maarij, Nuh, Al-Jinn, Al-Muzzammil',                                                                  tooltip:'69:1 – 73:20', moonText:H_STAND_UP},
-    {day:27, sidor:'575–583',imam:'tba',        imamLabel:'Meddelas senare',               datum:'2027-03-05', vecka:'Friday',   surahs:'Al-Muddaththir, Al-Qiyamah, Al-Insan, Al-Mursalat, An-Naba',                                                         tooltip:'74:1 – 78:40', moonText:H_SEEK_NIGHT},
-    {day:28, sidor:'583–591',imam:'tba',    imamLabel:'Meddelas senare',      datum:'2027-03-06', vecka:'Saturday',   surahs:'An-Naziat, Abasa, At-Takwir, Al-Infitar, Al-Mutaffifin, Al-Inshiqaq, Al-Buruj, At-Tariq, Al-Ala',                    tooltip:'79:1 – 87:19', moonText:H_STAND_UP},
-    {day:29, sidor:'592–604',imam:'tba',     imamLabel:'Meddelas senare',            datum:'2027-03-07', vecka:'Sunday',   surahs:'Al-Ghashiyah, Al-Fajr, Al-Balad, Ash-Shams, Al-Layl, Ad-Duha, Ash-Sharh, At-Tin, Al-Alaq, Al-Qadr, Al-Bayyinah, Az-Zalzalah, Al-Adiyat, Al-Qariah, At-Takathur, Al-Asr, Al-Humazah, Al-Fil, Quraysh, Al-Maun, Al-Kawthar, Al-Kafirun, An-Nasr, Al-Masad, Al-Ikhlas, Al-Falaq, An-Nas', tooltip:'88:1 – 114:6', moonText:H_SEEK_NIGHT},
-    {day:30, sidor:'2–11',   imam:'tba',        imamLabel:'Meddelas senare',               datum:'2027-03-08', vecka:'Monday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:1 – 2:74'},
+    {day:1,  sidor:'2–11',    imam:'tba',                              datum:'2027-02-07', vecka:'Sunday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:1 – 2:74'},
+    {day:2,  sidor:'11–21',  imam:'tba',                                             datum:'2027-02-08', vecka:'Monday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:75 – 2:141'},
+    {day:3,  sidor:'22–31',  imam:'tba',                                                   datum:'2027-02-09', vecka:'Tuesday',  surahs:'Al-Baqarah',                                                                                                        tooltip:'2:142 – 2:202'},
+    {day:4,  sidor:'32–41',  imam:'tba',                                           datum:'2027-02-10', vecka:'Wednesday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:203 – 2:265'},
+    {day:5,  sidor:'42–51',  imam:'tba',                                      datum:'2027-02-11', vecka:'Thursday',   surahs:'Al-Baqarah, Ali Imran',                                                                                             tooltip:'2:266 – 3:14'},
+    {day:6,  sidor:'51–62',  imam:'tba',                              datum:'2027-02-12', vecka:'Friday',   surahs:'Ali Imran',                                                                                                         tooltip:'3:15 – 3:92'},
+    {day:7,  sidor:'62–72',  imam:'tba',                              datum:'2027-02-13', vecka:'Saturday',   surahs:'Ali Imran',                                                                                                         tooltip:'3:93 – 3:170'},
+    {day:8,  sidor:'72–81',  imam:'tba',                                             datum:'2027-02-14', vecka:'Sunday',   surahs:'Ali Imran, An-Nisa',                                                                                                tooltip:'3:171 – 4:23'},
+    {day:9,  sidor:'82–92',  imam:'tba',                                         datum:'2027-02-15', vecka:'Monday',   surahs:'An-Nisa',                                                                                                           tooltip:'4:24 – 4:87'},
+    {day:10, sidor:'92–101', imam:'tba',                                          datum:'2027-02-16', vecka:'Tuesday',  surahs:'An-Nisa',                                                                                                           tooltip:'4:88 – 4:147'},
+    {day:11, sidor:'102–106',imam:'tba',                                      datum:'2027-02-17', vecka:'Wednesday',   surahs:'An-Nisa, Fatir',                                                                                                    tooltip:'4:148 – 35:30'},
+    {day:12, sidor:'438–449',imam:'tba',                                             datum:'2027-02-18', vecka:'Thursday',   surahs:'Fatir, Ya-Sin, As-Saffat',                                                                                          tooltip:'35:31 – 37:82'},
+    {day:13, sidor:'449–458',imam:'tba',                                  datum:'2027-02-19', vecka:'Friday',   surahs:'As-Saffat, Sad',                                                                                                    tooltip:'37:83 – 38:88'},
+    {day:14, sidor:'458–467',imam:'tba',                                             datum:'2027-02-20', vecka:'Saturday',   surahs:'Az-Zumar',                                                                                                          tooltip:'39:1 – 39:75'},
+    {day:15, sidor:'467–476',imam:'tba',                                                   datum:'2027-02-21', vecka:'Sunday',   surahs:'Ghafir',                                                                                                            tooltip:'40:1 – 40:85'},
+    {day:16, sidor:'476–486',imam:'tba',                                      datum:'2027-02-22', vecka:'Monday',   surahs:'Fussilat, Ash-Shura',                                                                                               tooltip:'41:1 – 42:26'},
+    {day:17, sidor:'486–495',imam:'tba',                                             datum:'2027-02-23', vecka:'Tuesday',  surahs:'Ash-Shura, Az-Zukhruf',                                                                                             tooltip:'42:27 – 43:89'},
+    {day:18, sidor:'496–506',imam:'tba',                                             datum:'2027-02-24', vecka:'Wednesday',   surahs:'Ad-Dukhan, Al-Jathiyah, Al-Ahqaf',                                                                                  tooltip:'44:1 – 46:35'},
+    {day:19, sidor:'507–515',imam:'tba',                                             datum:'2027-02-25', vecka:'Thursday',   surahs:'Muhammad, Al-Fath',                                                                                                 tooltip:'47:1 – 48:29'},
+    {day:20, sidor:'515–523',imam:'tba',                                             datum:'2027-02-26', vecka:'Friday',   surahs:'Al-Hujurat, Qaf, Adh-Dhariyat',                                                                                     tooltip:'49:1 – 51:60', moonText:H_SEEK_ODD},
+    {day:21, sidor:'523–531',imam:'tba',                                                   datum:'2027-02-27', vecka:'Saturday',   surahs:'At-Tur, An-Najm, Al-Qamar',                                                                                         tooltip:'52:1 – 54:55', moonText:H_SEEK_ODD},
+    {day:22, sidor:'531–539',imam:'tba',                                      datum:'2027-02-28', vecka:'Sunday',   surahs:'Ar-Rahman, Al-Waqiah, Al-Hadid',                                                                                    tooltip:'55:1 – 57:15', moonText:H_STAND_UP},
+    {day:23, sidor:'539–548',imam:'tba',                              datum:'2027-03-01', vecka:'Monday',   surahs:'Al-Hadid, Al-Mujadilah, Al-Hashr',                                                                                  tooltip:'57:16 – 59:24', moonText:H_SEEK_ODD},
+    {day:24, sidor:'549–557',imam:'tba',                                           datum:'2027-03-02', vecka:'Tuesday',  surahs:'Al-Mumtahanah, As-Saf, Al-Jumuah, Al-Munafiqun, At-Taghabun',                                                       tooltip:'60:1 – 64:18', moonText:H_STAND_UP},
+    {day:25, sidor:'558–566',imam:'tba',                                                 datum:'2027-03-03', vecka:'Wednesday',   surahs:'At-Talaq, At-Tahrim, Al-Mulk, Al-Qalam',                                                                            tooltip:'65:1 – 68:52', moonText:H_SEEK_NIGHT},
+    {day:26, sidor:'566–574',imam:'tba',                              datum:'2027-03-04', vecka:'Thursday',   surahs:'Al-Haqqah, Al-Maarij, Nuh, Al-Jinn, Al-Muzzammil',                                                                  tooltip:'69:1 – 73:20', moonText:H_STAND_UP},
+    {day:27, sidor:'575–583',imam:'tba',                                                   datum:'2027-03-05', vecka:'Friday',   surahs:'Al-Muddaththir, Al-Qiyamah, Al-Insan, Al-Mursalat, An-Naba',                                                         tooltip:'74:1 – 78:40', moonText:H_SEEK_NIGHT},
+    {day:28, sidor:'583–591',imam:'tba',                                      datum:'2027-03-06', vecka:'Saturday',   surahs:'An-Naziat, Abasa, At-Takwir, Al-Infitar, Al-Mutaffifin, Al-Inshiqaq, Al-Buruj, At-Tariq, Al-Ala',                    tooltip:'79:1 – 87:19', moonText:H_STAND_UP},
+    {day:29, sidor:'592–604',imam:'tba',                                             datum:'2027-03-07', vecka:'Sunday',   surahs:'Al-Ghashiyah, Al-Fajr, Al-Balad, Ash-Shams, Al-Layl, Ad-Duha, Ash-Sharh, At-Tin, Al-Alaq, Al-Qadr, Al-Bayyinah, Az-Zalzalah, Al-Adiyat, Al-Qariah, At-Takathur, Al-Asr, Al-Humazah, Al-Fil, Quraysh, Al-Maun, Al-Kawthar, Al-Kafirun, An-Nasr, Al-Masad, Al-Ikhlas, Al-Falaq, An-Nas', tooltip:'88:1 – 114:6', moonText:H_SEEK_NIGHT},
+    {day:30, sidor:'2–11',   imam:'tba',                                                   datum:'2027-03-08', vecka:'Monday',   surahs:'Al-Baqarah',                                                                                                        tooltip:'2:1 – 2:74'},
   ];
+
+  // Nätter utan imam ännu: namnet följer valt språk (T[lang].imamTba)
+  SCHEDULE.forEach(r => {
+    if (r.imam === 'tba') Object.defineProperty(r, 'imamLabel', {
+      get: () => (T[_currentLang] || T.sv).imamTba, enumerable: true, configurable: true,
+    });
+  });
 
   const _now = new Date();
   const _p2 = n => String(n).padStart(2,'0');
@@ -5987,6 +5999,14 @@
       if (dot) npFooterText.prepend(dot);
     }
     if (window._bellRenderPanel) window._bellRenderPanel();
+
+    // "Meddelas senare"-chips i tabell och mobilkort
+    document.querySelectorAll('.imam-chip.imam-tba').forEach(chip => {
+      chip.lastChild.textContent = t.imamTba;
+    });
+    const _tbaToday = SCHEDULE.find(r => r.datum === today && r.imam === 'tba');
+    const _tbaTodayEl = document.getElementById('today-imam-name');
+    if (_tbaToday && _tbaTodayEl) _tbaTodayEl.textContent = t.imamTba;
 
     // Mobile cards surah label (dynamically rendered)
     document.querySelectorAll('.dcm-surahs-label').forEach(el => {
