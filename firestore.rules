@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Push-prenumerationer (oförändrad — används av både 1447 och 1448)
+    match /push-subscriptions/{docId} {
+      allow read, write: if true;
+    }
+
+    // Tarawih-schema (tarawih/1448): alla får läsa, bara admins får skriva
+    match /tarawih/{season} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid in ['3KJixZp9j8eI7f2KvqSUjBWf76F3', 'EBvjfRtz3sOnlfqtfahtLChMWPz2']
+        && request.resource.data.keys().hasOnly(['imams', 'assignments', 'updatedAt', 'updatedBy'])
+        && (!('imams' in request.resource.data) || request.resource.data.imams is map)
+        && (!('assignments' in request.resource.data) || request.resource.data.assignments is map)
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if false;
+    }
+  }
+}

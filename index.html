@@ -3693,10 +3693,88 @@
     });
   });
 
+  // ══════════════════════════════════════════════════════════════
+  //  IMAM-TILLDELNING — läses från Firestore (tarawih/1448)
+  //  Redigeras i adminläget (admin.js). Skrivning skyddas av
+  //  Firestore-reglerna; här görs bara publik läsning.
+  //  Saknas data/nät → SCHEDULE ovan ("Meddelas senare") gäller.
+  // ══════════════════════════════════════════════════════════════
+  const IMAM_DOC_URL   = 'https://firestore.googleapis.com/v1/projects/sverigesimamer/databases/(default)/documents/tarawih/1448';
+  const IMAM_CACHE_KEY = 'tarawih-imams-1448';
+  const _dynImamColors = {};
+  const _safeImamName  = s => String(s || '').replace(/[<>&"'`]/g, '').trim().slice(0, 40);
+  const _isImamId      = id => /^[a-z0-9-]{1,40}$/.test(id);
+
+  // Firestore REST-värde → vanligt JS-värde
+  function _fsVal(v) {
+    if (!v) return null;
+    if ('stringValue'  in v) return v.stringValue;
+    if ('integerValue' in v) return Number(v.integerValue);
+    if ('mapValue'     in v) {
+      const o = {}, f = v.mapValue.fields || {};
+      Object.keys(f).forEach(k => { o[k] = _fsVal(f[k]); });
+      return o;
+    }
+    return null;
+  }
+
+  function _setChipText(chip, text) {
+    const node = [...chip.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim());
+    if (node) node.textContent = text; else chip.appendChild(document.createTextNode(text));
+  }
+
+  function _refreshImamChips() {
+    SCHEDULE.forEach(row => {
+      document.querySelectorAll(`[data-datum="${row.datum}"] .imam-chip`).forEach(chip => {
+        chip.className = chip.className.replace(/\bimam-(?!chip\b)[a-z0-9-]+/g, '').trim() + ' imam-' + row.imam;
+        _setChipText(chip, row.imamLabel);
+      });
+    });
+    const todayRow = SCHEDULE.find(r => r.datum === today);
+    const todayEl  = document.getElementById('today-imam-name');
+    if (todayRow && todayEl) todayEl.textContent = todayRow.imamLabel;
+  }
+
+  function applyImamData(data) {
+    const imams = (data && data.imams) || {};
+    const asg   = (data && data.assignments) || {};
+    let css = '';
+    Object.keys(_dynImamColors).forEach(k => delete _dynImamColors[k]);
+    Object.keys(imams).forEach(id => {
+      if (!_isImamId(id) || !imams[id]) return;
+      const c = /^#[0-9a-f]{6}$/i.test(imams[id].color || '') ? imams[id].color : '#24645d';
+      const [r, g, b] = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+      const light = (r * 299 + g * 587 + b * 114) / 1000 > 160;
+      _dynImamColors[id] = c;
+      css += `.imam-${id}{background:${c};${light ? 'color:#1a1a1a!important' : ''}}` +
+             (light ? `.imam-${id} .dot{background:rgba(0,0,0,.15)!important}` : '');
+    });
+    let styleEl = document.getElementById('dyn-imam-colors');
+    if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'dyn-imam-colors'; document.head.appendChild(styleEl); }
+    styleEl.textContent = css;
+
+    SCHEDULE.forEach(row => {
+      const id = asg[row.day];
+      if (id && imams[id] && _isImamId(id)) {
+        row.imam = id;
+        Object.defineProperty(row, 'imamLabel', { value: _safeImamName(imams[id].name), writable: true, enumerable: true, configurable: true });
+      } else {
+        row.imam = 'tba';
+        Object.defineProperty(row, 'imamLabel', { get: () => (T[_currentLang] || T.sv).imamTba, enumerable: true, configurable: true });
+      }
+    });
+    window.IMAM_DATA = { imams, assignments: asg };
+    _refreshImamChips();
+  }
+  window.applyImamData = applyImamData;
+
   const _now = new Date();
   const _p2 = n => String(n).padStart(2,'0');
   const today = _now.getFullYear() + '-' + _p2(_now.getMonth()+1) + '-' + _p2(_now.getDate());
   const isAfterRamadan = today > '2027-03-08';
+
+  // Senast kända schema direkt (inget "Meddelas senare"-blink vid återbesök)
+  try { const c = localStorage.getItem(IMAM_CACHE_KEY); if (c) applyImamData(JSON.parse(c)); } catch (e) {}
 
   // ── Ramadan 1448 (2027) datumlogik ──
   // Ramadan 2027 börjar 7 feb kl 16:21 (kvällens första Tarawih)
@@ -4501,6 +4579,7 @@
     tba:         '#7a8a86',
     _isha:       '#5a7a8a',  // Neutral färg för isha-recitörer
   };
+  Object.setPrototypeOf(IMAM_COLORS, _dynImamColors); // imamer tillagda i adminläget
 
   // ══════════════════════════════════════════════════════════════
   //  MediaSession — registrera handlers EN gång vid sidladdning
@@ -6002,7 +6081,7 @@
 
     // "Meddelas senare"-chips i tabell och mobilkort
     document.querySelectorAll('.imam-chip.imam-tba').forEach(chip => {
-      chip.lastChild.textContent = t.imamTba;
+      _setChipText(chip, t.imamTba);
     });
     const _tbaToday = SCHEDULE.find(r => r.datum === today && r.imam === 'tba');
     const _tbaTodayEl = document.getElementById('today-imam-name');
@@ -7872,6 +7951,40 @@
         } catch {}
       }, 8000); // Vänta 8s efter laddning (efter checkNewAudio på 4s)
     });
+  })();
+
+  // ── Hämta aktuell imam-tilldelning (publik läsning) ──
+  fetch(IMAM_DOC_URL, { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : (r.status === 404 ? { fields: {} } : Promise.reject(r.status)))
+    .then(doc => {
+      const f = doc.fields || {};
+      const data = { imams: _fsVal(f.imams) || {}, assignments: _fsVal(f.assignments) || {} };
+      applyImamData(data);
+      try { localStorage.setItem(IMAM_CACHE_KEY, JSON.stringify(data)); } catch (e) {}
+    })
+    .catch(err => console.warn('[Imams] Kunde inte hämta schema, visar sparad version:', err));
+
+  // ── Dold väg till adminläget: tre snabba tryck på rubriken ──
+  // OBS: detta döljer bara ingången. All behörighet kontrolleras av
+  // Firebase Auth + Firestore-reglerna, aldrig här.
+  function _loadAdmin(action) {
+    import('./admin.js?v=1').then(m => m[action]()).catch(e => console.warn('[Admin]', e));
+  }
+  (function () {
+    const h1 = document.getElementById('header-h1');
+    if (!h1) return;
+    let taps = 0, first = 0;
+    h1.addEventListener('pointerdown', e => {
+      if (e.timeStamp - first > 700) { taps = 0; }
+      if (taps === 0) first = e.timeStamp;
+      if (++taps === 3) {
+        taps = 0;
+        try { window.getSelection().removeAllRanges(); } catch (err) {}
+        _loadAdmin('openLogin');
+      }
+    });
+    // Återuppta adminläget efter omladdning (bara på enheter där admin loggat in)
+    try { if (localStorage.getItem('tarawih-admin') === '1') _loadAdmin('resume'); } catch (e) {}
   })();
 
 
