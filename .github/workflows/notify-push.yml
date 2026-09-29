@@ -152,15 +152,19 @@ jobs:
               exit 1
             fi
 
-            LINE=$(grep -oP "\{day:\d+.*?\}" index.html | grep "datum:'$DATUM'" || true)
+            # Natt räknas från första Tarawih-kvällen (väljs i adminläget, förval 2027-02-07)
+            START=$(echo "$SCHEDULE_DOC" | jq -r '.fields.startDate.stringValue // "2027-02-07"')
+            NATT=0
+            if [[ "$DATUM" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && [[ "$START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              NATT=$(( ( $(date -u -d "$DATUM" +%s) - $(date -u -d "$START" +%s) ) / 86400 + 1 ))
+            fi
 
-            if [ -z "$LINE" ]; then
+            if [ "$NATT" -lt 1 ] || [ "$NATT" -gt 30 ]; then
               echo "Datum $DATUM not found in SCHEDULE, using generic notification."
               TITLE="🔊 Låt Qur'anen fylla ditt hjärta"
               BODY="Kvällens Tarawih är nu uppladdad. Lyssna och reflektera över Allahs ord."
               URL="https://sverigesimamer.github.io/imam-schema-1448/"
             else
-              NATT=$(echo "$LINE" | grep -oP "day:\K\d+" || true)
               IMAM_ID=$(echo "$SCHEDULE_DOC" | jq -r --arg n "$NATT" '.fields.assignments.mapValue.fields[$n].stringValue // empty')
               IMAM=""
               if [ -n "$IMAM_ID" ]; then

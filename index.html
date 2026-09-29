@@ -3700,6 +3700,64 @@
   //  Saknas data/nät → SCHEDULE ovan ("Meddelas senare") gäller.
   // ══════════════════════════════════════════════════════════════
   const IMAM_DOC_URL   = 'https://firestore.googleapis.com/v1/projects/sverigesimamer/databases/(default)/documents/tarawih/1448';
+
+  // ── Första Tarawih-kvällen (natt 1) — väljs i adminläget efter månskådning ──
+  // Alla datum/veckodagar räknas från den. Ändras den laddas sidan om en gång.
+  const DEFAULT_START  = '2027-02-07';
+  const _WEEKDAYS_EN   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const _isIsoDate     = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+  function _applyStartDate(start) {
+    if (!_isIsoDate(start)) start = DEFAULT_START;
+    const [y, m, d] = start.split('-').map(Number);
+    SCHEDULE.forEach(row => {
+      const dt = new Date(Date.UTC(y, m - 1, d + row.day - 1));
+      row.datum = dt.toISOString().slice(0, 10);
+      row.vecka = _WEEKDAYS_EN[dt.getUTCDay()];
+    });
+    window.RAMADAN_START = start;
+  }
+  _applyStartDate(DEFAULT_START);
+
+  // ── Sidor / Suror / Verser per natt — kan skrivas över i adminläget ──
+  const _DEFAULT_TEXTS = SCHEDULE.map(r => ({ sidor: r.sidor, surahs: r.surahs, tooltip: r.tooltip }));
+  window.DEFAULT_NIGHT_TEXTS = _DEFAULT_TEXTS;
+  const _safeText = s => String(s == null ? '' : s).replace(/[<>`]/g, '').trim().slice(0, 300);
+  function _applyNightTexts(nights) {
+    nights = nights || {};
+    SCHEDULE.forEach((row, i) => {
+      const o = nights[row.day] || {}, def = _DEFAULT_TEXTS[i];
+      row.sidor   = o.sidor   ? _safeText(o.sidor)   : def.sidor;
+      row.surahs  = o.surahs  ? _safeText(o.surahs)  : def.surahs;
+      row.tooltip = o.tooltip ? _safeText(o.tooltip) : def.tooltip;
+    });
+  }
+  function _setOwnText(el, text) {
+    const node = [...el.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (node) node.textContent = ' ' + text + ' ';
+  }
+  function _refreshRowTexts() {
+    SCHEDULE.forEach(row => {
+      const tr = document.querySelector(`tr[data-datum="${row.datum}"]`);
+      if (tr) {
+        const sid = tr.querySelector('.td-sidor');     if (sid) sid.textContent = row.sidor;
+        const sn  = tr.querySelector('.surah-names');  if (sn)  sn.textContent  = row.surahs;
+        const tb  = tr.querySelector('.tooltip-box');  if (tb)  tb.textContent  = '📖 ' + row.tooltip;
+      }
+      const card = document.querySelector(`.day-card-mobile[data-datum="${row.datum}"]`);
+      if (card) {
+        const pg = card.querySelector('.dcm-pages');   if (pg) pg.textContent = 's. ' + row.sidor;
+        const sb = card.querySelector('.dcm-surahs');  if (sb) _setOwnText(sb, row.surahs);
+        const tt = card.querySelector('.dcm-tooltip'); if (tt) tt.textContent = '📖 ' + row.tooltip;
+      }
+    });
+    const todayRow = SCHEDULE.find(r => r.datum === today);
+    if (todayRow) {
+      const pv = document.getElementById('today-pages');
+      if (pv) { pv.dataset.sidor = todayRow.sidor; pv.textContent = (T[_currentLang].pagesPrefix || 'Sidor') + ' ' + todayRow.sidor; }
+      const sn = document.getElementById('today-surahs-name'); if (sn) sn.textContent = todayRow.surahs;
+      const sr = document.getElementById('today-surahs-ref');  if (sr) sr.textContent = todayRow.tooltip;
+    }
+  }
   const IMAM_CACHE_KEY = 'tarawih-imams-1448';
   const _dynImamColors = {};
   const _safeImamName  = s => String(s || '').replace(/[<>&"'`]/g, '').trim().slice(0, 40);
@@ -3763,24 +3821,30 @@
         Object.defineProperty(row, 'imamLabel', { get: () => (T[_currentLang] || T.sv).imamTba, enumerable: true, configurable: true });
       }
     });
-    window.IMAM_DATA = { imams, assignments: asg };
+    _applyNightTexts(data && data.nights);
+    window.IMAM_DATA = { imams, assignments: asg, nights: (data && data.nights) || {}, startDate: window.RAMADAN_START };
     _refreshImamChips();
+    _refreshRowTexts();
   }
   window.applyImamData = applyImamData;
 
   const _now = new Date();
   const _p2 = n => String(n).padStart(2,'0');
   const today = _now.getFullYear() + '-' + _p2(_now.getMonth()+1) + '-' + _p2(_now.getDate());
-  const isAfterRamadan = today > '2027-03-08';
 
   // Senast kända schema direkt (inget "Meddelas senare"-blink vid återbesök)
-  try { const c = localStorage.getItem(IMAM_CACHE_KEY); if (c) applyImamData(JSON.parse(c)); } catch (e) {}
+  try {
+    const c = localStorage.getItem(IMAM_CACHE_KEY);
+    if (c) { const d = JSON.parse(c); _applyStartDate(d.startDate); applyImamData(d); }
+  } catch (e) {}
+  const isAfterRamadan = today > SCHEDULE[SCHEDULE.length - 1].datum;
 
   // ── Ramadan 1448 (2027) datumlogik ──
-  // Ramadan 2027 börjar 7 feb kl 16:21 (kvällens första Tarawih)
-  // Sista Tarawih-natten är 8 mars 2027 → Eid-kortet visas från 9 mars
-  const RC_TARGET        = new Date('2027-02-07T16:21:00');
-  const RAMADAN_2027_END = new Date('2027-03-09T00:00:00');
+  // Nedräkningen går till natt 1 kl 16:21 (förval 7 feb 2027, ändras i adminläget).
+  // Eid-kortet visas dagen efter sista Tarawih-natten.
+  const RC_TARGET        = new Date(SCHEDULE[0].datum + 'T16:21:00');
+  const RAMADAN_2027_END = new Date(SCHEDULE[SCHEDULE.length - 1].datum + 'T00:00:00');
+  RAMADAN_2027_END.setDate(RAMADAN_2027_END.getDate() + 1);
   const _nowMs           = new Date();
   const _isRamadan2027   = _nowMs >= RC_TARGET && _nowMs < RAMADAN_2027_END;
   const _isAfterRam2027  = _nowMs >= RAMADAN_2027_END;
@@ -4295,7 +4359,7 @@
     // Visa komet-wrapper istället för pulsing
     const todayCard = document.getElementById('today-card');
     const cometWrap = document.getElementById('today-card-comet');
-    // Visa Dagens Imam-kortet bara under Ramadan 2027 (7 feb – 8 mar 2027)
+    // Visa Dagens Imam-kortet bara under Ramadan (natt 1 – natt 30)
     if (_isRamadan2027) {
       todayCard.style.display = 'block';
       cometWrap.style.display = 'block';
@@ -7958,9 +8022,15 @@
     .then(r => r.ok ? r.json() : (r.status === 404 ? { fields: {} } : Promise.reject(r.status)))
     .then(doc => {
       const f = doc.fields || {};
-      const data = { imams: _fsVal(f.imams) || {}, assignments: _fsVal(f.assignments) || {} };
+      const data = {
+        imams: _fsVal(f.imams) || {}, assignments: _fsVal(f.assignments) || {},
+        nights: _fsVal(f.nights) || {}, startDate: _isIsoDate(_fsVal(f.startDate)) ? _fsVal(f.startDate) : DEFAULT_START,
+      };
+      let saved = false;
+      try { localStorage.setItem(IMAM_CACHE_KEY, JSON.stringify(data)); saved = localStorage.getItem(IMAM_CACHE_KEY) !== null; } catch (e) {}
+      // Nytt startdatum → ladda om en gång så att alla datum räknas om (bara om cachen gick att spara, annars loop)
+      if (data.startDate !== window.RAMADAN_START && saved) { location.reload(); return; }
       applyImamData(data);
-      try { localStorage.setItem(IMAM_CACHE_KEY, JSON.stringify(data)); } catch (e) {}
     })
     .catch(err => console.warn('[Imams] Kunde inte hämta schema, visar sparad version:', err));
 
@@ -7968,7 +8038,7 @@
   // OBS: detta döljer bara ingången. All behörighet kontrolleras av
   // Firebase Auth + Firestore-reglerna, aldrig här.
   function _loadAdmin(action) {
-    import('./admin.js?v=1').then(m => m[action]()).catch(e => console.warn('[Admin]', e));
+    import('./admin.js?v=2').then(m => m[action]()).catch(e => console.warn('[Admin]', e));
   }
   (function () {
     const h1 = document.getElementById('header-h1');

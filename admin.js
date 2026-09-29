@@ -27,6 +27,7 @@ const firebaseConfig = {
 
 const ADMIN_UIDS = ['3KJixZp9j8eI7f2KvqSUjBWf76F3', 'EBvjfRtz3sOnlfqtfahtLChMWPz2'];
 const FLAG_KEY   = 'tarawih-admin';
+const DEFAULT_START = '2027-02-07';
 const PALETTE    = ['#e8630a', '#d4a800', '#2980b9', '#219150', '#7d3aac', '#7b3f00',
                     '#2d6a4f', '#1a3a6b', '#c0392b', '#16a085', '#8e44ad', '#4a4a4a'];
 
@@ -36,7 +37,7 @@ const db   = getFirestore(app);
 const ref  = doc(db, 'tarawih', '1448');
 
 let user = null;
-let data = { imams: {}, assignments: {} };
+let data = { imams: {}, assignments: {}, nights: {}, startDate: null };
 let unsubscribe = null;
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -88,6 +89,7 @@ function injectStyles() {
     .adm-bar button { font: inherit; color: #fff; background: rgba(255,255,255,.12); border: 0; border-radius: 8px; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
     .adm-bar-actions { display: flex; gap: 6px; }
     body.adm-on { padding-top: calc(36px + env(safe-area-inset-top)); }
+    @media (max-width: 360px) { .adm-bar { padding: 0 6px; gap: 4px; } .adm-bar button { padding: 6px 7px; font-size: .72rem; } .adm-bar-actions { gap: 4px; } }
 
     /* Redigerbara imam-chips */
     body.adm-on .imam-chip { position: relative; cursor: pointer; }
@@ -109,6 +111,16 @@ function injectStyles() {
       background: var(--primary-dark, #1a4a44); color: #fff; font: 600 .82rem 'DM Sans', system-ui, sans-serif; padding: 10px 16px;
       border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.25); animation: admUp .2s ease; }
     .adm-toast.err { background: #c0392b; }
+
+    /* Redigerbara sidor/suror */
+    body.adm-on .td-sidor, body.adm-on .td-surah, body.adm-on .dcm-pages, body.adm-on .dcm-surahs { cursor: pointer; }
+    body.adm-on .td-sidor, body.adm-on .surah-names, body.adm-on .dcm-pages { text-decoration: underline dashed rgba(201,168,76,.7); text-underline-offset: 3px; }
+    body.adm-on .dcm-surahs { outline: 1px dashed rgba(201,168,76,.55); outline-offset: -1px; }
+    .adm-hint { font-size: .78rem; color: var(--muted, #6b7280); text-align: center; margin: -8px 0 14px; line-height: 1.5; }
+    .adm-preview { background: var(--surface-2, #f0ece4); border-radius: 12px; padding: 12px 14px; font-size: .85rem; line-height: 1.7; margin: 4px 0 6px; }
+    .adm-preview b { color: var(--primary, #24645d); }
+    .adm-link { font: inherit; font-size: .8rem; background: none; border: 0; color: var(--primary, #24645d); text-decoration: underline; cursor: pointer; padding: 0; }
+    textarea.adm-input { resize: vertical; min-height: 64px; line-height: 1.45; }
   `;
   document.head.appendChild(st);
 }
@@ -213,11 +225,14 @@ function enterAdmin() {
   bar.className = 'adm-bar';
   bar.innerHTML = `<span class="adm-bar-label">Adminläge</span>
     <span class="adm-bar-actions">
-      <button type="button" id="adm-manage">Hantera imamer</button>
+      <button type="button" id="adm-start">Första natt</button>
+      <button type="button" id="adm-manage">Imamer</button>
       <button type="button" id="adm-logout">Logga ut</button>
     </span>`;
   document.body.appendChild(bar);
   $('#adm-manage').onclick = openManage;
+  $('#adm-start').onclick = openStartDate;
+  document.addEventListener('click', onEditableClick, true);
   $('#adm-logout').onclick = async () => {
     await signOut(auth);
     setFlag(false);
@@ -227,9 +242,14 @@ function enterAdmin() {
   // Live-synk: båda admins ser varandras ändringar direkt
   unsubscribe = onSnapshot(ref, snap => {
     const d = snap.exists() ? snap.data() : {};
-    data = { imams: d.imams || {}, assignments: d.assignments || {} };
-    window.applyImamData(data);
+    data = {
+      imams: d.imams || {}, assignments: d.assignments || {}, nights: d.nights || {},
+      startDate: /^\d{4}-\d{2}-\d{2}$/.test(d.startDate || '') ? d.startDate : DEFAULT_START,
+    };
     try { localStorage.setItem('tarawih-imams-1448', JSON.stringify(data)); } catch (e) {}
+    // Nytt startdatum (även från den andra admin) → räkna om alla datum
+    if (data.startDate !== window.RAMADAN_START) { location.reload(); return; }
+    window.applyImamData(data);
     attachSelects();
     refreshManage();
   }, err => toast('Kunde inte läsa schemat: ' + err.code, true));
@@ -265,7 +285,7 @@ async function assign(day, imamId, chip) {
   const prev = data.assignments[day] || '';
   if (prev === imamId) return;
   // Optimistisk uppdatering
-  const next = { imams: data.imams, assignments: { ...data.assignments } };
+  const next = { ...data, assignments: { ...data.assignments } };
   if (imamId) next.assignments[day] = imamId; else delete next.assignments[day];
   data = next;
   window.applyImamData(data);
@@ -279,7 +299,7 @@ async function assign(day, imamId, chip) {
     const name = imamId ? data.imams[imamId].name : 'Meddelas senare';
     toast(`Natt ${day}: ${name} ✓`);
   } catch (ex) {
-    const rollback = { imams: data.imams, assignments: { ...data.assignments } };
+    const rollback = { ...data, assignments: { ...data.assignments } };
     if (prev) rollback.assignments[day] = prev; else delete rollback.assignments[day];
     data = rollback;
     window.applyImamData(data);
@@ -310,6 +330,7 @@ function nextColor() {
   return PALETTE.find(c => !used.has(c)) || PALETTE[Object.keys(data.imams).length % PALETTE.length];
 }
 
+const save_ = (patch, okMsg) => save(patch, okMsg);
 async function save(patch, okMsg) {
   try {
     await setDoc(ref, { ...patch, updatedAt: serverTimestamp(), updatedBy: user.uid }, { merge: true });
@@ -396,4 +417,101 @@ function refreshManage() {
       save({ imams: { [id]: deleteField() }, ...(nights.length ? { assignments: asg } : {}) }, `${im.name} borttagen`);
     });
   });
+}
+
+// ── Första Tarawih-kvällen (efter månskådning) ──
+const MONTHS_SV = ['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'];
+const DAYS_SV   = ['söndag','måndag','tisdag','onsdag','torsdag','fredag','lördag'];
+function fmtDay(iso, add = 0) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + add));
+  return `${DAYS_SV[dt.getUTCDay()]} ${dt.getUTCDate()} ${MONTHS_SV[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`;
+}
+
+function openStartDate() {
+  if ($('.adm-backdrop')) return;
+  const current = data.startDate || DEFAULT_START;
+  const m = modal(`
+    <h2 class="adm-title">Första Tarawih</h2>
+    <p class="adm-hint">Välj kvällen för den första Tarawih-bönen efter månskådningen.<br>Alla 30 nätter, nedräkningen och Eid-kortet följer med.</p>
+    <label class="adm-field"><span>Natt 1 (kväll)</span>
+      <input class="adm-input" type="date" id="adm-date" value="${current}" min="2027-01-31" max="2027-02-14" required></label>
+    <div class="adm-preview" id="adm-date-preview"></div>
+    <button type="button" class="adm-link" id="adm-date-reset">Återställ förval (${fmtDay(DEFAULT_START)})</button>
+    <p class="adm-err" id="adm-date-err"></p>
+    <div class="adm-actions">
+      <button type="button" class="adm-btn ghost" id="adm-date-cancel">Avbryt</button>
+      <button type="button" class="adm-btn" id="adm-date-save">Spara</button>
+    </div>`);
+  const inp = $('#adm-date', m.el), prev = $('#adm-date-preview', m.el), save = $('#adm-date-save', m.el);
+  const render = () => {
+    const v = inp.value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { prev.textContent = 'Välj ett datum.'; save.disabled = true; return; }
+    save.disabled = v === current;
+    prev.innerHTML = `Natt 1: <b>${fmtDay(v)}</b><br>Natt 30: <b>${fmtDay(v, 29)}</b><br>Eid-kortet visas från ${fmtDay(v, 30)}` +
+      (v === current ? '<br><span style="opacity:.7">(nuvarande datum)</span>' : '');
+  };
+  inp.addEventListener('input', render);
+  render();
+  $('#adm-date-reset', m.el).onclick = () => { inp.value = DEFAULT_START; render(); };
+  $('#adm-date-cancel', m.el).onclick = m.close;
+  save.onclick = async () => {
+    const v = inp.value;
+    if (!confirm(`Flytta första Tarawih till ${fmtDay(v)}?\n\nSidan laddas om för alla besökare med de nya datumen.`)) return;
+    save.disabled = true;
+    if (await save_({ startDate: v }, 'Startdatum sparat ✓')) m.close();   // onSnapshot laddar om sidan
+    else save.disabled = false;
+  };
+}
+
+// ── Sidor / Suror / Verser per natt ──
+function onEditableClick(e) {
+  if (!document.body.classList.contains('adm-on')) return;
+  const hit = e.target.closest('.td-sidor, .td-surah, .dcm-pages, .dcm-surahs');
+  if (!hit || e.target.closest('.adm-sel, .imam-chip, .play-btn, .fav-btn')) return;
+  const host = hit.closest('[data-datum]');
+  const row = host && (window.SCHEDULE || []).find(r => r.datum === host.dataset.datum);
+  if (!row) return;
+  e.preventDefault();
+  e.stopPropagation();
+  openNightEditor(row);
+}
+
+function openNightEditor(row) {
+  if ($('.adm-backdrop')) return;
+  const def = (window.DEFAULT_NIGHT_TEXTS || [])[row.day - 1] || {};
+  const overridden = !!data.nights[row.day];
+  const m = modal(`
+    <h2 class="adm-title">Natt ${row.day}</h2>
+    <p class="adm-hint">${fmtDay(row.datum)}</p>
+    <form id="adm-night">
+      <label class="adm-field"><span>Sidor</span>
+        <input class="adm-input" name="sidor" value="${esc(row.sidor)}" maxlength="40" placeholder="t.ex. 92–101" required></label>
+      <label class="adm-field"><span>Suror</span>
+        <textarea class="adm-input" name="surahs" maxlength="300" placeholder="t.ex. An-Nisa, Al-Maidah" required>${esc(row.surahs)}</textarea></label>
+      <label class="adm-field"><span>Verser</span>
+        <input class="adm-input" name="tooltip" value="${esc(row.tooltip)}" maxlength="120" placeholder="t.ex. 4:88 – 4:147"></label>
+      ${overridden ? `<button type="button" class="adm-link" id="adm-night-reset">Återställ standard (s. ${esc(def.sidor)} · ${esc(def.surahs)})</button>` : ''}
+      <p class="adm-err"></p>
+      <div class="adm-actions">
+        <button type="button" class="adm-btn ghost" id="adm-night-cancel">Avbryt</button>
+        <button type="submit" class="adm-btn">Spara</button>
+      </div>
+    </form>`);
+  const form = $('#adm-night', m.el);
+  $('#adm-night-cancel', m.el).onclick = m.close;
+  const reset = $('#adm-night-reset', m.el);
+  if (reset) reset.onclick = async () => {
+    if (await save_({ nights: { [row.day]: deleteField() } }, `Natt ${row.day} återställd ✓`)) m.close();
+  };
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const clean = v => String(v || '').replace(/[<>`]/g, '').replace(/\s+/g, ' ').trim();
+    const val = { sidor: clean(form.sidor.value).slice(0, 40), surahs: clean(form.surahs.value).slice(0, 300), tooltip: clean(form.tooltip.value).slice(0, 120) };
+    if (!val.sidor || !val.surahs) return;
+    const same = val.sidor === def.sidor && val.surahs === def.surahs && val.tooltip === def.tooltip;
+    const btn = $('button[type=submit]', form); btn.disabled = true;
+    const ok = await save_({ nights: { [row.day]: same ? deleteField() : val } }, `Natt ${row.day} sparad ✓`);
+    if (ok) m.close(); else btn.disabled = false;
+  };
 }
