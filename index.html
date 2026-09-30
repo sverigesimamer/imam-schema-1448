@@ -3718,6 +3718,21 @@
   }
   _applyStartDate(DEFAULT_START);
 
+  // ── Eid-dagen — väljs i adminläget (förval: 30 nätter, Eid två dagar efter natt 30) ──
+  // Eid = start + 31 → 30 nätter · Eid = start + 30 → 29 nätter (natt 30 blir Eid-natt och döljs)
+  const _addDays = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+  function _applyEidDate(eid) {
+    const min = _addDays(window.RAMADAN_START, 30), max = _addDays(window.RAMADAN_START, 31);
+    if (!_isIsoDate(eid) || eid < min || eid > max) eid = max;
+    window.EID_DATE = eid;
+    window.TARAWIH_NIGHTS = eid === min ? 29 : 30;
+    SCHEDULE.forEach(row => { row.hidden = row.day > window.TARAWIH_NIGHTS; });
+    let st = document.getElementById('eid-hide-nights');
+    if (!st) { st = document.createElement('style'); st.id = 'eid-hide-nights'; document.head.appendChild(st); }
+    st.textContent = SCHEDULE.filter(r => r.hidden).map(r => `[data-datum="${r.datum}"]{display:none!important}`).join('');
+  }
+  _applyEidDate(null);
+
   // ── Sidor / Suror / Verser per natt — kan skrivas över i adminläget ──
   const _DEFAULT_TEXTS = SCHEDULE.map(r => ({ sidor: r.sidor, surahs: r.surahs, tooltip: r.tooltip }));
   window.DEFAULT_NIGHT_TEXTS = _DEFAULT_TEXTS;
@@ -3750,7 +3765,7 @@
         const tt = card.querySelector('.dcm-tooltip'); if (tt) tt.textContent = '📖 ' + row.tooltip;
       }
     });
-    const todayRow = SCHEDULE.find(r => r.datum === today);
+    const todayRow = SCHEDULE.find(r => !r.hidden && r.datum === today);
     if (todayRow) {
       const pv = document.getElementById('today-pages');
       if (pv) { pv.dataset.sidor = todayRow.sidor; pv.textContent = (T[_currentLang].pagesPrefix || 'Sidor') + ' ' + todayRow.sidor; }
@@ -3788,7 +3803,7 @@
         _setChipText(chip, row.imamLabel);
       });
     });
-    const todayRow = SCHEDULE.find(r => r.datum === today);
+    const todayRow = SCHEDULE.find(r => !r.hidden && r.datum === today);
     const todayEl  = document.getElementById('today-imam-name');
     if (todayRow && todayEl) todayEl.textContent = todayRow.imamLabel;
   }
@@ -3822,7 +3837,7 @@
       }
     });
     _applyNightTexts(data && data.nights);
-    window.IMAM_DATA = { imams, assignments: asg, nights: (data && data.nights) || {}, startDate: window.RAMADAN_START };
+    window.IMAM_DATA = { imams, assignments: asg, nights: (data && data.nights) || {}, startDate: window.RAMADAN_START, eidDate: window.EID_DATE };
     _refreshImamChips();
     _refreshRowTexts();
   }
@@ -3835,16 +3850,15 @@
   // Senast kända schema direkt (inget "Meddelas senare"-blink vid återbesök)
   try {
     const c = localStorage.getItem(IMAM_CACHE_KEY);
-    if (c) { const d = JSON.parse(c); _applyStartDate(d.startDate); applyImamData(d); }
+    if (c) { const d = JSON.parse(c); _applyStartDate(d.startDate); _applyEidDate(d.eidDate); applyImamData(d); }
   } catch (e) {}
-  const isAfterRamadan = today > SCHEDULE[SCHEDULE.length - 1].datum;
+  const isAfterRamadan = today >= window.EID_DATE;
 
   // ── Ramadan 1448 (2027) datumlogik ──
   // Nedräkningen går till natt 1 kl 16:21 (förval 7 feb 2027, ändras i adminläget).
-  // Eid-kortet visas dagen efter sista Tarawih-natten.
+  // Eid-kortet visas från Eid-dagen (väljs i adminläget).
   const RC_TARGET        = new Date(SCHEDULE[0].datum + 'T16:21:00');
-  const RAMADAN_2027_END = new Date(SCHEDULE[SCHEDULE.length - 1].datum + 'T00:00:00');
-  RAMADAN_2027_END.setDate(RAMADAN_2027_END.getDate() + 1);
+  const RAMADAN_2027_END = new Date(window.EID_DATE + 'T00:00:00');
   const _nowMs           = new Date();
   const _isRamadan2027   = _nowMs >= RC_TARGET && _nowMs < RAMADAN_2027_END;
   const _isAfterRam2027  = _nowMs >= RAMADAN_2027_END;
@@ -3921,7 +3935,7 @@
   })();
 
   // Qadr-natt-detektion: udda natt i sista 10 → kosmisk blå dark mode
-  const _todayRow = SCHEDULE.find(r => r.datum === today);
+  const _todayRow = SCHEDULE.find(r => !r.hidden && r.datum === today);
   const _isQadrToday = _todayRow && _todayRow.day >= 21 && _todayRow.day % 2 !== 0;
   if (_isQadrToday) {
     document.documentElement.setAttribute('data-qadr', 'true');
@@ -4232,7 +4246,7 @@
     }
   }
 
-  const todayData = SCHEDULE.find(r => r.datum === today);
+  const todayData = SCHEDULE.find(r => !r.hidden && r.datum === today);
   if (todayData) {
     const d = new Date(today);
     document.getElementById('today-imam-name').textContent = todayData.imamLabel;
@@ -6147,7 +6161,7 @@
     document.querySelectorAll('.imam-chip.imam-tba').forEach(chip => {
       _setChipText(chip, t.imamTba);
     });
-    const _tbaToday = SCHEDULE.find(r => r.datum === today && r.imam === 'tba');
+    const _tbaToday = SCHEDULE.find(r => !r.hidden && r.datum === today && r.imam === 'tba');
     const _tbaTodayEl = document.getElementById('today-imam-name');
     if (_tbaToday && _tbaTodayEl) _tbaTodayEl.textContent = t.imamTba;
 
@@ -6174,7 +6188,7 @@
     // Today-card date label — re-render with correct language
     const dateLabelEl = document.getElementById('today-date-label');
     if (dateLabelEl && dateLabelEl.textContent && dateLabelEl.textContent !== '—') {
-      const todayRow = SCHEDULE.find(r => r.datum === today);
+      const todayRow = SCHEDULE.find(r => !r.hidden && r.datum === today);
       if (todayRow) dateLabelEl.textContent = getDateLabel(new Date(today));
     }
 
@@ -6204,7 +6218,7 @@
     // Today-card inline hadith
     const hadithInline = document.querySelector('.today-hadith-inline');
     if (hadithInline) {
-      const todayRow = SCHEDULE.find(r => r.datum === today);
+      const todayRow = SCHEDULE.find(r => !r.hidden && r.datum === today);
       if (todayRow) {
         const key = todayRow.moonText || DEFAULT_MOON_TEXT;
         const newText = (t.hadith && t.hadith[key]) ? t.hadith[key] : T['sv'].hadith[key];
@@ -6301,7 +6315,7 @@
 
   /* ── Instagram Story canvas export ── */
   function exportInstagramCard() {
-    const todayRow = SCHEDULE.find(r => r.datum === today);
+    const todayRow = SCHEDULE.find(r => !r.hidden && r.datum === today);
     if (!todayRow) return;
 
     // Vänta på att Google Fonts är laddade — annars ritar canvas med system-font
@@ -8025,11 +8039,14 @@
       const data = {
         imams: _fsVal(f.imams) || {}, assignments: _fsVal(f.assignments) || {},
         nights: _fsVal(f.nights) || {}, startDate: _isIsoDate(_fsVal(f.startDate)) ? _fsVal(f.startDate) : DEFAULT_START,
+        eidDate: _isIsoDate(_fsVal(f.eidDate)) ? _fsVal(f.eidDate) : null,
       };
+      const _max = _addDays(data.startDate, 31), _min = _addDays(data.startDate, 30);
+      const effEid = data.eidDate && data.eidDate >= _min && data.eidDate <= _max ? data.eidDate : _max;
       let saved = false;
       try { localStorage.setItem(IMAM_CACHE_KEY, JSON.stringify(data)); saved = localStorage.getItem(IMAM_CACHE_KEY) !== null; } catch (e) {}
       // Nytt startdatum → ladda om en gång så att alla datum räknas om (bara om cachen gick att spara, annars loop)
-      if (data.startDate !== window.RAMADAN_START && saved) { location.reload(); return; }
+      if ((data.startDate !== window.RAMADAN_START || effEid !== window.EID_DATE) && saved) { location.reload(); return; }
       applyImamData(data);
     })
     .catch(err => console.warn('[Imams] Kunde inte hämta schema, visar sparad version:', err));
@@ -8038,7 +8055,7 @@
   // OBS: detta döljer bara ingången. All behörighet kontrolleras av
   // Firebase Auth + Firestore-reglerna, aldrig här.
   function _loadAdmin(action) {
-    import('./admin.js?v=2').then(m => m[action]()).catch(e => console.warn('[Admin]', e));
+    import('./admin.js?v=3').then(m => m[action]()).catch(e => console.warn('[Admin]', e));
   }
   (function () {
     const h1 = document.getElementById('header-h1');

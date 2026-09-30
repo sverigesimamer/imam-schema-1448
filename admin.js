@@ -37,7 +37,7 @@ const db   = getFirestore(app);
 const ref  = doc(db, 'tarawih', '1448');
 
 let user = null;
-let data = { imams: {}, assignments: {}, nights: {}, startDate: null };
+let data = { imams: {}, assignments: {}, nights: {}, startDate: null, eidDate: null };
 let unsubscribe = null;
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -225,7 +225,7 @@ function enterAdmin() {
   bar.className = 'adm-bar';
   bar.innerHTML = `<span class="adm-bar-label">Adminläge</span>
     <span class="adm-bar-actions">
-      <button type="button" id="adm-start">Första natt</button>
+      <button type="button" id="adm-start">Datum</button>
       <button type="button" id="adm-manage">Imamer</button>
       <button type="button" id="adm-logout">Logga ut</button>
     </span>`;
@@ -245,10 +245,13 @@ function enterAdmin() {
     data = {
       imams: d.imams || {}, assignments: d.assignments || {}, nights: d.nights || {},
       startDate: /^\d{4}-\d{2}-\d{2}$/.test(d.startDate || '') ? d.startDate : DEFAULT_START,
+      eidDate: /^\d{4}-\d{2}-\d{2}$/.test(d.eidDate || '') ? d.eidDate : null,
     };
     try { localStorage.setItem('tarawih-imams-1448', JSON.stringify(data)); } catch (e) {}
     // Nytt startdatum (även från den andra admin) → räkna om alla datum
-    if (data.startDate !== window.RAMADAN_START) { location.reload(); return; }
+    const effEid = data.eidDate && data.eidDate >= addDaysIso(data.startDate, 30) && data.eidDate <= addDaysIso(data.startDate, 31)
+      ? data.eidDate : addDaysIso(data.startDate, 31);
+    if (data.startDate !== window.RAMADAN_START || effEid !== window.EID_DATE) { location.reload(); return; }
     window.applyImamData(data);
     attachSelects();
     refreshManage();
@@ -428,39 +431,56 @@ function fmtDay(iso, add = 0) {
   return `${DAYS_SV[dt.getUTCDay()]} ${dt.getUTCDate()} ${MONTHS_SV[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`;
 }
 
+const addDaysIso = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+
 function openStartDate() {
   if ($('.adm-backdrop')) return;
-  const current = data.startDate || DEFAULT_START;
+  const curStart = data.startDate || DEFAULT_START;
+  const curEid   = window.EID_DATE || addDaysIso(curStart, 31);
   const m = modal(`
-    <h2 class="adm-title">Första Tarawih</h2>
-    <p class="adm-hint">Välj kvällen för den första Tarawih-bönen efter månskådningen.<br>Alla 30 nätter, nedräkningen och Eid-kortet följer med.</p>
-    <label class="adm-field"><span>Natt 1 (kväll)</span>
-      <input class="adm-input" type="date" id="adm-date" value="${current}" min="2027-01-31" max="2027-02-14" required></label>
+    <h2 class="adm-title">Datum</h2>
+    <p class="adm-hint">Ställ in efter månskådningen. Förvalen gäller om inget ändras.</p>
+    <label class="adm-field"><span>Första Tarawih (kväll, natt 1)</span>
+      <input class="adm-input" type="date" id="adm-date" value="${curStart}" min="2027-01-31" max="2027-02-14" required></label>
+    <label class="adm-field"><span>Eid al-Fitr</span>
+      <input class="adm-input" type="date" id="adm-eid" value="${curEid}" required></label>
     <div class="adm-preview" id="adm-date-preview"></div>
-    <button type="button" class="adm-link" id="adm-date-reset">Återställ förval (${fmtDay(DEFAULT_START)})</button>
+    <button type="button" class="adm-link" id="adm-date-reset">Återställ förval (natt 1 ${fmtDay(DEFAULT_START)}, Eid ${fmtDay(DEFAULT_START, 31)})</button>
     <p class="adm-err" id="adm-date-err"></p>
     <div class="adm-actions">
       <button type="button" class="adm-btn ghost" id="adm-date-cancel">Avbryt</button>
       <button type="button" class="adm-btn" id="adm-date-save">Spara</button>
     </div>`);
-  const inp = $('#adm-date', m.el), prev = $('#adm-date-preview', m.el), save = $('#adm-date-save', m.el);
+  const inp = $('#adm-date', m.el), eid = $('#adm-eid', m.el), prev = $('#adm-date-preview', m.el), saveBtn = $('#adm-date-save', m.el);
+  let lastStart = curStart;
   const render = () => {
     const v = inp.value;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { prev.textContent = 'Välj ett datum.'; save.disabled = true; return; }
-    save.disabled = v === current;
-    prev.innerHTML = `Natt 1: <b>${fmtDay(v)}</b><br>Natt 30: <b>${fmtDay(v, 29)}</b><br>Eid-kortet visas från ${fmtDay(v, 30)}` +
-      (v === current ? '<br><span style="opacity:.7">(nuvarande datum)</span>' : '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { prev.textContent = 'Välj första Tarawih-kvällen.'; saveBtn.disabled = true; return; }
+    // Flyttas natt 1 följer Eid med (samma antal dagar)
+    if (v !== lastStart && /^\d{4}-\d{2}-\d{2}$/.test(eid.value)) {
+      const [a, b] = [lastStart, v].map(x => Date.UTC(...x.split('-').map((n, i) => i === 1 ? n - 1 : +n)));
+      eid.value = addDaysIso(eid.value, Math.round((b - a) / 864e5));
+    }
+    lastStart = v;
+    eid.min = addDaysIso(v, 30); eid.max = addDaysIso(v, 31);
+    if (eid.value < eid.min || eid.value > eid.max) eid.value = eid.max;
+    const nights = eid.value === eid.min ? 29 : 30;
+    prev.innerHTML = `Natt 1: <b>${fmtDay(v)}</b><br>Sista Tarawih: <b>natt ${nights}, ${fmtDay(v, nights - 1)}</b><br>` +
+      `Eid al-Fitr: <b>${fmtDay(eid.value)}</b> · Ramadan ${nights} dagar` +
+      (nights === 29 ? '<br><span style="opacity:.75">Natt 30 döljs i schemat.</span>' : '');
+    saveBtn.disabled = v === curStart && eid.value === curEid;
   };
   inp.addEventListener('input', render);
+  eid.addEventListener('input', render);
   render();
-  $('#adm-date-reset', m.el).onclick = () => { inp.value = DEFAULT_START; render(); };
+  $('#adm-date-reset', m.el).onclick = () => { lastStart = DEFAULT_START; inp.value = DEFAULT_START; eid.value = addDaysIso(DEFAULT_START, 31); render(); };
   $('#adm-date-cancel', m.el).onclick = m.close;
-  save.onclick = async () => {
-    const v = inp.value;
-    if (!confirm(`Flytta första Tarawih till ${fmtDay(v)}?\n\nSidan laddas om för alla besökare med de nya datumen.`)) return;
-    save.disabled = true;
-    if (await save_({ startDate: v }, 'Startdatum sparat ✓')) m.close();   // onSnapshot laddar om sidan
-    else save.disabled = false;
+  saveBtn.onclick = async () => {
+    const v = inp.value, e = eid.value;
+    if (!confirm(`Spara datum?\n\nFörsta Tarawih: ${fmtDay(v)}\nEid al-Fitr: ${fmtDay(e)}\n\nSidan laddas om för alla besökare med de nya datumen.`)) return;
+    saveBtn.disabled = true;
+    if (await save_({ startDate: v, eidDate: e }, 'Datum sparade ✓')) m.close();   // onSnapshot laddar om sidan
+    else saveBtn.disabled = false;
   };
 }
 
