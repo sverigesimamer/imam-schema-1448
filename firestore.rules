@@ -12,12 +12,12 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if request.auth != null
         && request.auth.uid in ['3KJixZp9j8eI7f2KvqSUjBWf76F3', 'EBvjfRtz3sOnlfqtfahtLChMWPz2']
-        && request.resource.data.keys().hasOnly(['imams', 'assignments', 'nights', 'startDate', 'eidDate', 'updatedAt', 'updatedBy'])
         && (!('imams' in request.resource.data) || request.resource.data.imams is map)
         && (!('assignments' in request.resource.data) || request.resource.data.assignments is map)
         && (!('nights' in request.resource.data) || request.resource.data.nights is map)
         && (!('startDate' in request.resource.data) || request.resource.data.startDate.matches('^20[0-9]{2}-[01][0-9]-[0-3][0-9]$'))
         && (!('eidDate' in request.resource.data) || request.resource.data.eidDate.matches('^20[0-9]{2}-[01][0-9]-[0-3][0-9]$'))
+        && (!('confirmed' in request.resource.data) || request.resource.data.confirmed is bool)
         && request.resource.data.updatedBy == request.auth.uid;
       allow delete: if false;
     }

@@ -3215,6 +3215,8 @@
       rcHours:  'timmar',
       rcMins:   'minuter',
       rcSecs:   'sekunder',
+      rcWaitTitle: 'Inväntar månskådningen',
+      rcWaitText:  'Första Tarawih bekräftas här så snart Ramadan är fastställd.',
       rcPhases: [
         {maxDays:7,    title:'Ramadan står vid dörren',         text:'Bara några dagar återstår. Vänd ditt hjärta mot Allah och gör dig redo.'},
         {maxDays:30,   title:'Bara dagar kvar till Ramadan',    text:'Gör ditt hjärta redo och möt Ramadan med uppriktig intention.'},
@@ -3317,6 +3319,8 @@
       rcHours: 'ساعات',
       rcMins: 'دقائق',
       rcSecs: 'ثوانٍ',
+      rcWaitTitle: 'بانتظار رؤية الهلال',
+      rcWaitText:  'سيُعلَن هنا عن أول تراويح فور ثبوت دخول شهر رمضان.',
       rcPhases: [
         {maxDays:7, title:'رمضان على الأبواب', text:'لم يتبق إلا أيام قليلة. أقبل على الله وهيّئ قلبك.'},
         {maxDays:30, title:'أيام قليلة تفصلنا عن رمضان', text:'هيّئ قلبك واستقبل رمضان بنية صادقة.'},
@@ -3419,6 +3423,8 @@
       rcHours: 'hours',
       rcMins: 'minutes',
       rcSecs: 'seconds',
+      rcWaitTitle: 'Awaiting the moon sighting',
+      rcWaitText:  'The first Tarawih will be confirmed here as soon as Ramadan is announced.',
       rcPhases: [
         {maxDays:7, title:'Ramadan is at the door', text:'Only a few days remain. Turn your heart to Allah and prepare yourself.'},
         {maxDays:30, title:'Just days until Ramadan', text:'Prepare your heart and welcome Ramadan with sincere intention.'},
@@ -3521,6 +3527,8 @@
       rcHours: 'saat',
       rcMins: 'dakika',
       rcSecs: 'saniye',
+      rcWaitTitle: 'Hilalin görülmesi bekleniyor',
+      rcWaitText:  'İlk teravih, Ramazan kesinleşir kesinleşmez burada duyurulacak.',
       rcPhases: [
         {maxDays:7, title:'Ramazan kapıda', text:'Sadece birkaç gün kaldı. Kalbini Allah\'a döndür ve hazırlan.'},
         {maxDays:30, title:'Ramazan\'a sayılı günler kaldı', text:'Kalbini hazırla ve Ramazan\'ı samimi bir niyetle karşıla.'},
@@ -3623,6 +3631,8 @@
       rcHours: 'saacadood',
       rcMins: 'daqiiqadood',
       rcSecs: 'ilbiriqsi',
+      rcWaitTitle: 'Waxaa la sugayaa aragtida bisha',
+      rcWaitText:  'Taraawiixda ugu horreysa halkan ayaa lagu xaqiijin doonaa marka Ramadaan la xaqiijiyo.',
       rcPhases: [
         {maxDays:7, title:'Ramadaan wuxuu taagan yahay albaabka', text:'Maalmahan oo kale ayaa hadhay. Geli qalbigaaga Alle oo is diyaari.'},
         {maxDays:30, title:'Maalmahan oo kale ayaa u hadhay Ramadaan', text:'Diyaari qalbigaaga oo Ramadaan ku soo dhawee niyad run ah.'},
@@ -3733,6 +3743,10 @@
   }
   _applyEidDate(null);
 
+  // ── Ramadan bekräftad? Sätts av admin ("Ramadan bekräftad – första Tarawih ikväll") ──
+  // Först då ersätts nedräkningen av Dagens Imam-kortet. Inget sker automatiskt.
+  window.RAMADAN_CONFIRMED = false;
+
   // ── Sidor / Suror / Verser per natt — kan skrivas över i adminläget ──
   const _DEFAULT_TEXTS = SCHEDULE.map(r => ({ sidor: r.sidor, surahs: r.surahs, tooltip: r.tooltip }));
   window.DEFAULT_NIGHT_TEXTS = _DEFAULT_TEXTS;
@@ -3783,6 +3797,7 @@
     if (!v) return null;
     if ('stringValue'  in v) return v.stringValue;
     if ('integerValue' in v) return Number(v.integerValue);
+    if ('booleanValue' in v) return v.booleanValue === true;
     if ('mapValue'     in v) {
       const o = {}, f = v.mapValue.fields || {};
       Object.keys(f).forEach(k => { o[k] = _fsVal(f[k]); });
@@ -3837,7 +3852,7 @@
       }
     });
     _applyNightTexts(data && data.nights);
-    window.IMAM_DATA = { imams, assignments: asg, nights: (data && data.nights) || {}, startDate: window.RAMADAN_START, eidDate: window.EID_DATE };
+    window.IMAM_DATA = { imams, assignments: asg, nights: (data && data.nights) || {}, startDate: window.RAMADAN_START, eidDate: window.EID_DATE, confirmed: window.RAMADAN_CONFIRMED };
     _refreshImamChips();
     _refreshRowTexts();
   }
@@ -3850,17 +3865,20 @@
   // Senast kända schema direkt (inget "Meddelas senare"-blink vid återbesök)
   try {
     const c = localStorage.getItem(IMAM_CACHE_KEY);
-    if (c) { const d = JSON.parse(c); _applyStartDate(d.startDate); _applyEidDate(d.eidDate); applyImamData(d); }
+    if (c) { const d = JSON.parse(c); _applyStartDate(d.startDate); _applyEidDate(d.eidDate); window.RAMADAN_CONFIRMED = d.confirmed === true; applyImamData(d); }
   } catch (e) {}
   const isAfterRamadan = today >= window.EID_DATE;
 
   // ── Ramadan 1448 (2027) datumlogik ──
-  // Nedräkningen går till natt 1 kl 16:21 (förval 7 feb 2027, ändras i adminläget).
+  // Nedräkningen går till natt 1 kl 16:21 (preliminärt datum, förval 7 feb 2027).
+  // Dagens Imam-kortet visas först när admin bekräftat Ramadan (RAMADAN_CONFIRMED) —
+  // når nedräkningen noll innan dess visas "Inväntar månskådningen".
   // Eid-kortet visas från Eid-dagen (väljs i adminläget).
-  const RC_TARGET        = new Date(SCHEDULE[0].datum + 'T16:21:00');
+  const _ramStart        = new Date(SCHEDULE[0].datum + 'T00:00:00');
+  const RC_TARGET        = window.RAMADAN_CONFIRMED ? _ramStart : new Date(SCHEDULE[0].datum + 'T16:21:00');
   const RAMADAN_2027_END = new Date(window.EID_DATE + 'T00:00:00');
   const _nowMs           = new Date();
-  const _isRamadan2027   = _nowMs >= RC_TARGET && _nowMs < RAMADAN_2027_END;
+  const _isRamadan2027   = window.RAMADAN_CONFIRMED && _nowMs >= _ramStart && _nowMs < RAMADAN_2027_END;
   const _isAfterRam2027  = _nowMs >= RAMADAN_2027_END;
 
   // Visa/dölj rätt kort
@@ -3898,10 +3916,19 @@
     function rcTick() {
       const diff = RC_TARGET - new Date();
       if (diff <= 0) {
-        // Ramadan har börjat – dölj countdown
         const card = document.getElementById('ramadan-countdown-card');
+        if (!window.RAMADAN_CONFIRMED) {
+          // Tiden är ute men Ramadan är inte bekräftad av admin → vänta på månskådningen
+          const tW = T[_currentLang] || T['sv'];
+          const g  = card && card.querySelector('.rc-timer-grid');
+          if (g) g.style.display = 'none';
+          const ti = document.getElementById('rc-title'), tx = document.getElementById('rc-text');
+          if (ti) ti.textContent = tW.rcWaitTitle || T.sv.rcWaitTitle;
+          if (tx) tx.textContent = tW.rcWaitText  || T.sv.rcWaitText;
+          return;
+        }
         if (card) card.style.display = 'none';
-        // Sidan var öppen när timern gick ut → ladda om en gång så att Dagens Imam-kortet visas
+        // Bekräftad och sidan var öppen när tiden gick ut → ladda om en gång så att Dagens Imam-kortet visas
         if (!_isRamadan2027 && !_isAfterRam2027) { clearInterval(rcTimer); location.reload(); }
         return;
       }
@@ -8034,31 +8061,47 @@
     });
   })();
 
-  // ── Hämta aktuell imam-tilldelning (publik läsning) ──
-  fetch(IMAM_DOC_URL, { cache: 'no-store' })
-    .then(r => r.ok ? r.json() : (r.status === 404 ? { fields: {} } : Promise.reject(r.status)))
-    .then(doc => {
-      const f = doc.fields || {};
-      const data = {
-        imams: _fsVal(f.imams) || {}, assignments: _fsVal(f.assignments) || {},
-        nights: _fsVal(f.nights) || {}, startDate: _isIsoDate(_fsVal(f.startDate)) ? _fsVal(f.startDate) : DEFAULT_START,
-        eidDate: _isIsoDate(_fsVal(f.eidDate)) ? _fsVal(f.eidDate) : null,
-      };
-      const _max = _addDays(data.startDate, 31), _min = _addDays(data.startDate, 30);
-      const effEid = data.eidDate && data.eidDate >= _min && data.eidDate <= _max ? data.eidDate : _max;
-      let saved = false;
-      try { localStorage.setItem(IMAM_CACHE_KEY, JSON.stringify(data)); saved = localStorage.getItem(IMAM_CACHE_KEY) !== null; } catch (e) {}
-      // Nytt startdatum → ladda om en gång så att alla datum räknas om (bara om cachen gick att spara, annars loop)
-      if ((data.startDate !== window.RAMADAN_START || effEid !== window.EID_DATE) && saved) { location.reload(); return; }
-      applyImamData(data);
-    })
-    .catch(err => console.warn('[Imams] Kunde inte hämta schema, visar sparad version:', err));
+  // ── Hämta aktuellt schema (publik läsning) ──
+  let _lastSchedLoad = 0;
+  function _loadSchedule() {
+    _lastSchedLoad = Date.now();
+    return fetch(IMAM_DOC_URL, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : (r.status === 404 ? { fields: {} } : Promise.reject(r.status)))
+      .then(doc => {
+        const f = doc.fields || {};
+        const data = {
+          imams: _fsVal(f.imams) || {}, assignments: _fsVal(f.assignments) || {},
+          nights: _fsVal(f.nights) || {}, startDate: _isIsoDate(_fsVal(f.startDate)) ? _fsVal(f.startDate) : DEFAULT_START,
+          eidDate: _isIsoDate(_fsVal(f.eidDate)) ? _fsVal(f.eidDate) : null,
+          confirmed: _fsVal(f.confirmed) === true,
+        };
+        const _max = _addDays(data.startDate, 31), _min = _addDays(data.startDate, 30);
+        const effEid = data.eidDate && data.eidDate >= _min && data.eidDate <= _max ? data.eidDate : _max;
+        let saved = false;
+        try { localStorage.setItem(IMAM_CACHE_KEY, JSON.stringify(data)); saved = localStorage.getItem(IMAM_CACHE_KEY) !== null; } catch (e) {}
+        // Nytt datum eller ny bekräftelse → ladda om en gång så att allt räknas om (bara om cachen gick att spara, annars loop)
+        const changed = data.startDate !== window.RAMADAN_START || effEid !== window.EID_DATE || data.confirmed !== window.RAMADAN_CONFIRMED;
+        if (changed && saved && !document.body.classList.contains('adm-on')) { location.reload(); return; }
+        applyImamData(data);
+      })
+      .catch(err => console.warn('[Imams] Kunde inte hämta schema, visar sparad version:', err));
+  }
+  _loadSchedule();
+  // Uppdatera när besökaren kommer tillbaka till sidan/appen (max var 30:e sekund) …
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Date.now() - _lastSchedLoad > 30000) _loadSchedule();
+  });
+  // … och var 3:e minut medan vi väntar på bekräftelsen (från 6 h före nedräkningens slut)
+  setInterval(() => {
+    if (document.visibilityState !== 'visible' || window.RAMADAN_CONFIRMED || _isAfterRam2027) return;
+    if (RC_TARGET - new Date() < 6 * 3600 * 1000) _loadSchedule();
+  }, 180000);
 
   // ── Dold väg till adminläget: tre snabba tryck på rubriken ──
   // OBS: detta döljer bara ingången. All behörighet kontrolleras av
   // Firebase Auth + Firestore-reglerna, aldrig här.
   function _loadAdmin(action) {
-    import('./admin.js?v=3').then(m => m[action]()).catch(e => console.warn('[Admin]', e));
+    import('./admin.js?v=4').then(m => m[action]()).catch(e => console.warn('[Admin]', e));
   }
   (function () {
     const h1 = document.getElementById('header-h1');

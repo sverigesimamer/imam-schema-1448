@@ -37,7 +37,7 @@ const db   = getFirestore(app);
 const ref  = doc(db, 'tarawih', '1448');
 
 let user = null;
-let data = { imams: {}, assignments: {}, nights: {}, startDate: null, eidDate: null };
+let data = { imams: {}, assignments: {}, nights: {}, startDate: null, eidDate: null, confirmed: false, preConfirm: null };
 let unsubscribe = null;
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -121,6 +121,17 @@ function injectStyles() {
     .adm-preview b { color: var(--primary, #24645d); }
     .adm-link { font: inherit; font-size: .8rem; background: none; border: 0; color: var(--primary, #24645d); text-decoration: underline; cursor: pointer; padding: 0; }
     textarea.adm-input { resize: vertical; min-height: 64px; line-height: 1.45; }
+
+    /* Bekräfta Ramadan */
+    .adm-cta-wrap { padding: 4px 18px 20px; text-align: center; position: relative; z-index: 3; }
+    .adm-cta { font: 700 .95rem 'DM Sans', system-ui, sans-serif; width: 100%; max-width: 420px; border: 0; border-radius: 14px; padding: 15px 18px; cursor: pointer;
+      color: #1a1a1a; background: linear-gradient(135deg, var(--gold-light, #e8c97a), var(--gold, #c9a84c)); box-shadow: 0 6px 22px rgba(201,168,76,.35); }
+    .adm-cta:active { transform: scale(.985); }
+    .adm-cta small { display: block; font-weight: 500; font-size: .76rem; opacity: .75; margin-top: 3px; }
+    .adm-cta-note { font: 500 .72rem 'DM Sans', system-ui, sans-serif; color: rgba(255,255,255,.55); margin-top: 8px; }
+    .adm-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2, #f0ece4);
+      border-radius: 12px; padding: 11px 14px; font-size: .85rem; margin-bottom: 14px; }
+    .adm-status b { color: var(--primary, #24645d); }
   `;
   document.head.appendChild(st);
 }
@@ -246,15 +257,17 @@ function enterAdmin() {
       imams: d.imams || {}, assignments: d.assignments || {}, nights: d.nights || {},
       startDate: /^\d{4}-\d{2}-\d{2}$/.test(d.startDate || '') ? d.startDate : DEFAULT_START,
       eidDate: /^\d{4}-\d{2}-\d{2}$/.test(d.eidDate || '') ? d.eidDate : null,
+      confirmed: d.confirmed === true, preConfirm: d.preConfirm || null,
     };
     try { localStorage.setItem('tarawih-imams-1448', JSON.stringify(data)); } catch (e) {}
     // Nytt startdatum (även från den andra admin) → räkna om alla datum
     const effEid = data.eidDate && data.eidDate >= addDaysIso(data.startDate, 30) && data.eidDate <= addDaysIso(data.startDate, 31)
       ? data.eidDate : addDaysIso(data.startDate, 31);
-    if (data.startDate !== window.RAMADAN_START || effEid !== window.EID_DATE) { location.reload(); return; }
+    if (data.startDate !== window.RAMADAN_START || effEid !== window.EID_DATE || data.confirmed !== window.RAMADAN_CONFIRMED) { location.reload(); return; }
     window.applyImamData(data);
     attachSelects();
     refreshManage();
+    renderConfirmCta();
   }, err => toast('Kunde inte läsa schemat: ' + err.code, true));
 }
 
@@ -440,8 +453,11 @@ function openStartDate() {
   const m = modal(`
     <h2 class="adm-title">Datum</h2>
     <p class="adm-hint">Ställ in efter månskådningen. Förvalen gäller om inget ändras.</p>
+    <div class="adm-status">${data.confirmed
+      ? '<span><b>Ramadan bekräftad ✓</b><br>Dagens imam visas för besökarna.</span><button type="button" class="adm-link" id="adm-unconfirm">Ångra</button>'
+      : '<span><b>Ej bekräftad</b><br>Besökarna ser nedräkningen.</span><button type="button" class="adm-link" id="adm-confirm-link">Bekräfta ikväll</button>'}</div>
     <label class="adm-field"><span>Första Tarawih (kväll, natt 1)</span>
-      <input class="adm-input" type="date" id="adm-date" value="${curStart}" min="2027-01-31" max="2027-02-14" required></label>
+      <input class="adm-input" type="date" id="adm-date" value="${curStart}" required></label>
     <label class="adm-field"><span>Eid al-Fitr</span>
       <input class="adm-input" type="date" id="adm-eid" value="${curEid}" required></label>
     <div class="adm-preview" id="adm-date-preview"></div>
@@ -475,6 +491,9 @@ function openStartDate() {
   render();
   $('#adm-date-reset', m.el).onclick = () => { lastStart = DEFAULT_START; inp.value = DEFAULT_START; eid.value = addDaysIso(DEFAULT_START, 31); render(); };
   $('#adm-date-cancel', m.el).onclick = m.close;
+  const un = $('#adm-unconfirm', m.el), cf = $('#adm-confirm-link', m.el);
+  if (un) un.onclick = async () => { if (await undoConfirm()) m.close(); };
+  if (cf) cf.onclick = async () => { if (await confirmRamadan()) m.close(); };
   saveBtn.onclick = async () => {
     const v = inp.value, e = eid.value;
     if (!confirm(`Spara datum?\n\nFörsta Tarawih: ${fmtDay(v)}\nEid al-Fitr: ${fmtDay(e)}\n\nSidan laddas om för alla besökare med de nya datumen.`)) return;
@@ -534,4 +553,46 @@ function openNightEditor(row) {
     const ok = await save_({ nights: { [row.day]: same ? deleteField() : val } }, `Natt ${row.day} sparad ✓`);
     if (ok) m.close(); else btn.disabled = false;
   };
+}
+
+// ── Ramadan bekräftad – första Tarawih ikväll ──
+// Dagens Imam-kortet visas först när admin tryckt här. Inget aktiveras automatiskt.
+function todayIso() {
+  const n = new Date(), p = x => String(x).padStart(2, '0');
+  return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
+}
+
+function renderConfirmCta() {
+  const card = document.getElementById('ramadan-countdown-card');
+  let wrap = document.getElementById('adm-cta-wrap');
+  if (!card || data.confirmed) { wrap && wrap.remove(); return; }
+  if (wrap) return;
+  wrap = document.createElement('div');
+  wrap.id = 'adm-cta-wrap';
+  wrap.className = 'adm-cta-wrap';
+  wrap.innerHTML = `<button type="button" class="adm-cta" id="adm-cta">🌙 Ramadan bekräftad
+      <small>Första Tarawih ikväll – visa Dagens imam</small></button>
+    <div class="adm-cta-note">Syns bara för admin</div>`;
+  card.appendChild(wrap);
+  wrap.querySelector('#adm-cta').onclick = confirmRamadan;
+}
+
+async function confirmRamadan() {
+  const t = todayIso(), nights = window.TARAWIH_NIGHTS === 29 ? 29 : 30;
+  if (!confirm(`Bekräfta Ramadan?\n\nFörsta Tarawih sätts till IKVÄLL, ${fmtDay(t)}.\nNedräkningen ersätts av Dagens imam för alla besökare.\n\nDu kan ångra under "Datum".`)) return false;
+  return save_({
+    confirmed: true, startDate: t, eidDate: addDaysIso(t, nights + 1),
+    preConfirm: { startDate: data.startDate || DEFAULT_START, eidDate: window.EID_DATE || null },
+  }, 'Ramadan bekräftad ✓');   // onSnapshot laddar om sidan
+}
+
+async function undoConfirm() {
+  const pre = data.preConfirm || {};
+  const back = /^\d{4}-\d{2}-\d{2}$/.test(pre.startDate || '') ? pre.startDate : DEFAULT_START;
+  if (!confirm(`Ångra bekräftelsen?\n\nBesökarna ser nedräkningen igen och första Tarawih går tillbaka till ${fmtDay(back)}.`)) return false;
+  return save_({
+    confirmed: false, startDate: back,
+    eidDate: /^\d{4}-\d{2}-\d{2}$/.test(pre.eidDate || '') ? pre.eidDate : deleteField(),
+    preConfirm: deleteField(),
+  }, 'Bekräftelsen ångrad');
 }
