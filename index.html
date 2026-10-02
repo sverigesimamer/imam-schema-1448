@@ -3901,6 +3901,8 @@
         // Ramadan har börjat – dölj countdown
         const card = document.getElementById('ramadan-countdown-card');
         if (card) card.style.display = 'none';
+        // Sidan var öppen när timern gick ut → ladda om en gång så att Dagens Imam-kortet visas
+        if (!_isRamadan2027 && !_isAfterRam2027) { clearInterval(rcTimer); location.reload(); }
         return;
       }
       const totalSecs  = Math.floor(diff / 1000);
@@ -3930,8 +3932,9 @@
       if (el('rc-title')) el('rc-title').textContent = phase.title;
       if (el('rc-text'))  el('rc-text').textContent  = phase.text;
     }
+    let rcTimer = null;
     rcTick();
-    setInterval(rcTick, 1000);
+    rcTimer = setInterval(rcTick, 1000);
   })();
 
   // Qadr-natt-detektion: udda natt i sista 10 → kosmisk blå dark mode
